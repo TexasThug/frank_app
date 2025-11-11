@@ -3,4 +3,3 @@ requests
 openai
 pygame
 SpeechRecognition
-tempfile
