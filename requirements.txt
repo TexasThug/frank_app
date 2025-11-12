@@ -3,3 +3,4 @@ requests
 openai
 pygame
 SpeechRecognition
+python-dotenv
