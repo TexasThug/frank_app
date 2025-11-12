@@ -77,7 +77,7 @@
 <body>
   <h1>👋 Bonjour, je suis <span class="highlight">Good Frank</span><br>Comment puis-je vous aider&nbsp;?</h1>
 
-  <div class="microphone-btn" id="micButton" onclick="startRecognition()">
+  <div class="microphone-btn" id="micButton">
     <img src="/static/icon-512.png" alt="Micro">
   </div>
 
@@ -86,55 +86,64 @@
 
   <!-- 🎧 Lecture audio & interaction -->
   <script>
-    // 🚀 Étape 3 : Lecture automatique
-    async function sendTextToFrank(text) {
-      const response = await fetch("/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
-      });
-
-      const data = await response.json();
-
-      // Affiche la réponse texte
-      document.getElementById("result").innerHTML = "🤖 " + data.response_text;
-
-      // 🎧 Lecture automatique de la réponse vocale
-      if (data.audio_url) {
-        const audio = new Audio(data.audio_url);
-        try {
-          await audio.play();
-        } catch (err) {
-          console.warn("Lecture automatique bloquée (nécessite interaction) :", err);
-        }
-      }
-    }
-
-    async function startRecognition() {
+    document.addEventListener("DOMContentLoaded", () => {
       const micButton = document.getElementById("micButton");
       const status = document.getElementById("status");
+      const result = document.getElementById("result");
 
-      micButton.classList.add("listening");
-      status.innerText = "🎤 J’écoute...";
+      // Vérification compatibilité
+      if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+        status.innerText = "❌ Votre navigateur ne supporte pas la reconnaissance vocale.";
+        micButton.style.backgroundColor = "#ccc";
+        return;
+      }
 
-      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-      recognition.lang = "fr-FR";
-      recognition.start();
+      // Fonction d'écoute vocale
+      micButton.addEventListener("click", () => {
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = "fr-FR";
 
-      recognition.onresult = async (event) => {
-        const transcript = event.results[0][0].transcript;
-        status.innerText = `🗣️ Vous avez dit : « ${transcript} »`;
-        micButton.classList.remove("listening");
+        recognition.onstart = () => {
+          micButton.classList.add("listening");
+          status.innerText = "🎤 J’écoute...";
+        };
 
-        // Envoi du texte à Frank
-        sendTextToFrank(transcript);
-      };
+        recognition.onerror = (event) => {
+          micButton.classList.remove("listening");
+          status.innerText = "❌ Erreur de reconnaissance vocale : " + event.error;
+        };
 
-      recognition.onerror = (event) => {
-        status.innerText = "❌ Erreur de reconnaissance vocale.";
-        micButton.classList.remove("listening");
-      };
-    }
+        recognition.onresult = async (event) => {
+          micButton.classList.remove("listening");
+          const text = event.results[0][0].transcript;
+          status.innerText = `🗣️ Vous avez dit : « ${text} »`;
+
+          try {
+            const response = await fetch("/ask", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) throw new Error("Erreur API Flask");
+
+            const data = await response.json();
+            result.innerText = "🤖 " + data.response_text;
+
+            // Lecture audio de la réponse
+            if (data.audio_url) {
+              const audio = new Audio(data.audio_url);
+              audio.play().catch(err => console.warn("🎧 Lecture bloquée :", err));
+            }
+          } catch (err) {
+            console.error(err);
+            status.innerText = "❌ Erreur de communication avec le serveur.";
+          }
+        };
+
+        recognition.start();
+      });
+    });
   </script>
 </body>
 </html>
